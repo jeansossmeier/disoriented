@@ -2,12 +2,13 @@ package com.maxdemarzi;
 
 import com.googlecode.cqengine.attribute.Attribute;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Objects;
 
 import static com.googlecode.cqengine.query.QueryFactory.attribute;
 
-public class PropertyContainer {
+public class PropertyContainer implements Serializable {
 
     private final String type;
     private final String id;

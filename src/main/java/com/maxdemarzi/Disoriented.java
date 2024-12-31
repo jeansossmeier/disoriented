@@ -3,12 +3,15 @@ package com.maxdemarzi;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.googlecode.cqengine.IndexedCollection;
 import com.googlecode.cqengine.ObjectLockingIndexedCollection;
+import com.googlecode.cqengine.attribute.SimpleAttribute;
 import com.googlecode.cqengine.index.Index;
 import com.googlecode.cqengine.index.hash.HashIndex;
 import com.googlecode.cqengine.index.unique.UniqueIndex;
+import com.googlecode.cqengine.persistence.support.ObjectStore;
 import com.googlecode.cqengine.query.Query;
 import com.googlecode.cqengine.resultset.ResultSet;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
@@ -16,12 +19,16 @@ import static com.googlecode.cqengine.query.QueryFactory.equal;
 
 public class Disoriented {
 
+    private static final String PERSISTENCE_FILE_PATH = "persist.dat";
+
     private static IndexedCollection<PropertyContainer> nodes = new ObjectLockingIndexedCollection<>();
     private static IndexedCollection<PropertyContainer> relationships = new ObjectLockingIndexedCollection<>();
     private static HashMap<String, Set<String>> indexes = new HashMap<>();
     private static HashMap<String, ReversibleMultiMap<String, String>> related;
     private static final ObjectMapper mapper = new ObjectMapper();
     private static Disoriented instance;
+    private static ChroniclePersistence persistence;
+
     public static Disoriented init() {
         if (instance == null) {
             synchronized (Disoriented.class) {
@@ -31,6 +38,21 @@ public class Disoriented {
             }
         }
         return instance;
+    }
+
+    public static <T> ObjectStore<T> initPersistence(int indexKeyMaxSize, int objectMaxSize, int maxEntries) {
+        if (persistence == null) {
+            try {
+                persistence = createDiskPersistence(indexKeyMaxSize, objectMaxSize, maxEntries);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            nodes = new ObjectLockingIndexedCollection<>(persistence);
+            relationships = new ObjectLockingIndexedCollection<>(persistence);
+        }
+
+        return persistence;
     }
 
     public static Disoriented getInstance() {
@@ -55,6 +77,20 @@ public class Disoriented {
         relationships.addIndex(UniqueIndex.onAttribute(PropertyContainer.ID));
         relationships.addIndex(HashIndex.onAttribute(PropertyContainer.TYPE));
         related = new HashMap<>();
+    }
+
+    private static ChroniclePersistence createDiskPersistence(
+            int indexKeyMaxSize, int objectMaxSize, int maxEntries) throws IOException {
+
+        return new ChroniclePersistence(
+                (SimpleAttribute) PropertyContainer.ID,
+                new File(PERSISTENCE_FILE_PATH),
+                String.class,
+                Object.class,
+                indexKeyMaxSize,   // e.g: 36 for a UUID
+                objectMaxSize,     // e.g: 64 * 1024 = 64kb
+                maxEntries         // 1000000
+        );
     }
 
     public HashMap<String, Object> getRelationshipTypeAttributes(String type) {
